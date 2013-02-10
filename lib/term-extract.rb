@@ -5,10 +5,8 @@ require 'rbtagger'
 
 class TermExtract
 
-  @@SEARCH=0
-  @@NOUN=1
-
-  @@TAGGER = Brill::Tagger.new
+  SEARCH=0
+  NOUN=1
 
   attr_accessor :min_occurance, :min_terms, :types, :include_tags, :lazy
 
@@ -30,6 +28,7 @@ class TermExtract
     # Remove shorter terms that are part of larger ones
     @collapse_terms = options.key?(:collapse_terms) ? options.delete(:collapse_terms) : true
     #@lazy = options.key?(:lazy) ? options.delete(:lazy) : false
+    @tagger = Brill::Tagger.new
   end
 
   def extract(content)
@@ -39,8 +38,7 @@ class TermExtract
     content.gsub!(/([A-Za-z0-9])\./, '\1. ')
     
     # Assign POS tags and tidy tag stack
-    tagger = @@TAGGER.nil? ? Brill::Tagger.new : @@TAGGER
-    tags = preprocess_tags(tagger.tag(content))
+    tags = preprocess_tags(@tagger.tag(content))
 
     # Set pos tags that identify nouns
     pos = "^NN"
@@ -54,32 +52,32 @@ class TermExtract
     terms = Hash.new()
     multiterm = []
     last_tag = ''
-    state = @@SEARCH
+    state = SEARCH
 
     # Iterate through term list and identify nouns
     tags.each do |term,tag|
 
-      if state == @@SEARCH and tag =~ /#{pos}/
+      if state == SEARCH and tag =~ /#{pos}/
         # In search mode, found a noun
-        state = @@NOUN
+        state = NOUN
         add_term(term, tag, multiterm, terms)
-      elsif state == @@SEARCH and tag == 'JJ' and term =~ /^[A-Z]/ #and @lazy
+      elsif state == SEARCH and tag == 'JJ' and term =~ /^[A-Z]/ #and @lazy
         # Allow things like 'Good' at the start of sentences
-        state = @@NOUN
+        state = NOUN
         add_term(term, tag, multiterm, terms)
-      elsif state == @@NOUN and tag == 'POS'
+      elsif state == NOUN and tag == 'POS'
         # Allow nouns with apostrophes : St Paul's Cathedral
         multiterm << [term,tag]
-      elsif state == @@NOUN and last_tag =~ /^(NNP|NNPS)$/ and tag == 'IN' and term =~ /(of|for|on|of\sthe|\&|d\'|du|de)/i
+      elsif state == NOUN and last_tag =~ /^(NNP|NNPS)$/ and tag == 'IN' and term =~ /(of|for|on|of\sthe|\&|d\'|du|de)/i
         # Allow preposition : "Secretary of State"
         # Only use when in NNP mode
         multiterm << [term,tag]
-      elsif state == @@NOUN and tag =~ /^NN/
+      elsif state == NOUN and tag =~ /^NN/
         # In noun mode, found a noun, add a multiterm noun
         add_term(term, tag, multiterm, terms)
-      elsif state == @@NOUN and tag !=~ /#{pos}/
+      elsif state == NOUN and tag !=~ /#{pos}/
         # In noun mode, found a non-noun, do we have a possible multiterm ?
-        state = @@SEARCH
+        state = SEARCH
         add_multiterm(multiterm, terms) if multiterm.length > 1
         multiterm = []
       end
